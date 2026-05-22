@@ -100,19 +100,17 @@ _MARKER_DST = {
 }
 
 def perspective_correct(gray: np.ndarray):
-    # Primary: map detected marker centres to their expected pixel positions.
-    # Keeps PPM scale intact — bubble_px = bubble_mm × PPM after warp.
+    # Primary: use all 6 detected marker centres with RANSAC homography.
+    # More constraints → more accurate warp, robust against one bad detection.
     markers = detect_marker_centers(gray)
     if markers is not None:
-        # markers order: TL TR ML MR BL BR  (indices 0-5)
-        src = order_points(np.array([
-            markers[0], markers[1], markers[5], markers[4]  # TL TR BR BL
-        ], dtype="float32"))
-        tl = _MARKER_DST["TL"]; tr = _MARKER_DST["TR"]
-        br = _MARKER_DST["BR"]; bl = _MARKER_DST["BL"]
-        dst = order_points(np.array([tl, tr, br, bl], dtype="float32"))
-        M = cv2.getPerspectiveTransform(src, dst)
-        return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
+        # markers order: TL TR ML MR BL BR
+        key_order = ["TL", "TR", "ML", "MR", "BL", "BR"]
+        src_pts = np.array(markers, dtype="float32")
+        dst_pts = np.array([_MARKER_DST[k] for k in key_order], dtype="float32")
+        M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        if M is not None:
+            return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
 
     # Fallback: Canny finds page outline → corners map to canvas corners.
     corners = detect_page_corners(gray)
@@ -207,8 +205,8 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
     # Variant (Grup)
     fills = []
     for vi in range(num_variants):
-        # +4mm empirical correction: CSS flexbox gap renders larger in print context
-        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 4
+        # +5mm empirical correction: CSS flexbox gap renders larger in print context
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 5
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         fills.append(fill_ratio(norm, cx, cy, v["bubbleR"], thr))
     variant = pick_dominant(fills)
@@ -316,7 +314,7 @@ async def debug_omr(
 
     # Variant bubbles — red
     for vi in range(num_variants):
-        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 4
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 5
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         cv2.circle(vis, (px(cx), px(cy)), px(v["bubbleR"]), (0, 0, 220), 1)
 
