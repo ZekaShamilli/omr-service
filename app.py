@@ -17,7 +17,7 @@ NORM_H = 891     # 297 mm × 3
 NUMARA = dict(tableX=26, tableY=50, headerH=4, rowH=5.5,
               labelColW=5, digitColW=7, numCols=5, numRows=10, bubbleR=2)
 VARIANT = dict(x=74, y=50, rowH=8, labelW=4, bubbleR=2.2)
-GRID    = dict(startY=137, rowH=6, col1X=26, col2X=110,
+GRID    = dict(startY=142, rowH=6, col1X=26, col2X=110,
                numW=7, bubbleSpacing=7, bubbleR=2.4)
 
 MARKERS_MM = dict(
