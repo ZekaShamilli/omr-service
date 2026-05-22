@@ -43,7 +43,11 @@ def order_points(pts: np.ndarray) -> np.ndarray:
 
 
 def detect_marker_centers(gray: np.ndarray):
-    """Detect 6 fiducial squares → [TL, TR, ML, MR, BL, BR] pixel centres."""
+    """Detect 6 fiducial squares → [TL, TR, ML, MR, BL, BR] pixel centres.
+
+    Uses the LARGEST connected dark component in each zone so that thin bubble
+    circle borders (which also appear dark) don't corrupt the centroid.
+    """
     h, w = gray.shape
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
@@ -55,18 +59,29 @@ def detect_marker_centers(gray: np.ndarray):
         (0,    0.73, 0.25, 1.0 ),   # BL
         (0.75, 0.73, 1.0,  1.0 ),   # BR
     ]
-    MIN_FILL = 0.015
+    MIN_AREA_RATIO = 0.005   # largest blob must be ≥ 0.5% of zone area
 
     pts = []
     for (fx0, fy0, fx1, fy1) in ZONES:
         x0, x1 = int(fx0 * w), int(fx1 * w)
         y0, y1 = int(fy0 * h), int(fy1 * h)
-        roi  = binary[y0:y1, x0:x1]
-        fill = roi.mean() / 255.0
-        if fill < MIN_FILL:
+        roi = binary[y0:y1, x0:x1]
+
+        # Find connected components; label 0 = background
+        n_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(roi, connectivity=8)
+        if n_labels < 2:
             return None
-        ys, xs = np.where(roi > 0)
-        pts.append([float(xs.mean()) + x0, float(ys.mean()) + y0])
+
+        # Pick the largest non-background component
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        best  = int(np.argmax(areas)) + 1   # shift back to label index
+        if areas[best - 1] < (x1 - x0) * (y1 - y0) * MIN_AREA_RATIO:
+            return None
+
+        cx = float(centroids[best][0]) + x0
+        cy = float(centroids[best][1]) + y0
+        pts.append([cx, cy])
+
     return pts   # [TL, TR, ML, MR, BL, BR]
 
 
