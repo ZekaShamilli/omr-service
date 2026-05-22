@@ -205,10 +205,9 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
         answers[f"q{q + 1}"] = opts[idx] if idx >= 0 else ""
 
     # Student PIN
-    # +1.5mm empirical correction: CSS border-collapse shifts cells slightly right
     pin_digits = []
     for col in range(n["numCols"]):
-        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2 + 1.5
+        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         fills = []
         for d in range(n["numRows"]):
             cy = n["tableY"] + n["headerH"] + d * n["rowH"] + n["rowH"] / 2
@@ -220,8 +219,7 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
     # Variant (Grup)
     fills = []
     for vi in range(num_variants):
-        # +5mm empirical correction: CSS flexbox gap renders larger in print context
-        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 5
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"]
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         fills.append(fill_ratio(norm, cx, cy, v["bubbleR"], thr))
     variant = pick_dominant(fills)
@@ -322,14 +320,14 @@ async def debug_omr(
 
     # PIN bubbles — blue
     for col in range(n["numCols"]):
-        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2 + 1.5
+        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         for d in range(n["numRows"]):
             cy = n["tableY"] + n["headerH"] + d * n["rowH"] + n["rowH"] / 2
             cv2.circle(vis, (px(cx), px(cy)), px(n["bubbleR"]), (200, 0, 0), 1)
 
     # Variant bubbles — red
     for vi in range(num_variants):
-        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"] + 5
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"]
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         cv2.circle(vis, (px(cx), px(cy)), px(v["bubbleR"]), (0, 0, 220), 1)
 
