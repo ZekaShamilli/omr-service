@@ -1,0 +1,51 @@
+{
+  "_comment": "Normalised canvas: 630x891 px = 210x297 mm @ 3 px/mm. Edit only this file to adjust positions.",
+  "norm_w": 630,
+  "norm_h": 891,
+  "ppm":    3,
+
+  "markers_mm": {
+    "TL": [8,   8],
+    "TR": [187, 8],
+    "ML": [8,   141],
+    "MR": [187, 141],
+    "BL": [8,   274],
+    "BR": [187, 274]
+  },
+  "marker_size_mm": 15,
+
+  "numara": {
+    "tableX_mm":   26,
+    "tableY_mm":   50,
+    "headerH_mm":   4,
+    "rowH_mm":     5.5,
+    "labelColW_mm": 5,
+    "digitColW_mm": 7,
+    "numCols":      5,
+    "numRows":     10,
+    "bubbleR_mm":   2
+  },
+
+  "variant": {
+    "x_mm":      74,
+    "y_mm":      50,
+    "rowH_mm":    8,
+    "labelW_mm":  4,
+    "bubbleR_mm": 2.2
+  },
+
+  "grid": {
+    "startY_mm":      142,
+    "rowH_mm":          6,
+    "col1X_mm":        26,
+    "col2X_mm":       110,
+    "numW_mm":          7,
+    "bubbleSpacing_mm": 7,
+    "bubbleR_mm":      2.4
+  },
+
+  "analysis": {
+    "min_fill_ratio":   0.10,
+    "dominance_factor": 1.45
+  }
+}
