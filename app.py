@@ -308,7 +308,7 @@ async def debug_omr(
 
     def px(mm_val): return int(round(mm_val * PPM))
 
-    # Answer bubbles — green
+    # Answer bubbles — green filled dot
     for q in range(num_questions):
         is2  = q >= col1
         ri   = q - col1 if is2 else q
@@ -316,20 +316,20 @@ async def debug_omr(
         cy   = g["startY"] + ri * g["rowH"] + g["rowH"] / 2
         for oi in range(num_options):
             cx = colX + g["numW"] + oi * g["bubbleSpacing"] + g["bubbleSpacing"] / 2
-            cv2.circle(vis, (px(cx), px(cy)), px(g["bubbleR"]), (0, 200, 0), 1)
+            cv2.circle(vis, (px(cx), px(cy)), 3, (0, 180, 0), -1)
 
-    # PIN bubbles — blue
+    # PIN bubbles — blue filled dot
     for col in range(n["numCols"]):
         cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         for d in range(n["numRows"]):
             cy = n["tableY"] + n["headerH"] + d * n["rowH"] + n["rowH"] / 2
-            cv2.circle(vis, (px(cx), px(cy)), px(n["bubbleR"]), (200, 0, 0), 1)
+            cv2.circle(vis, (px(cx), px(cy)), 3, (220, 0, 0), -1)
 
-    # Variant bubbles — red
+    # Variant bubbles — red filled dot
     for vi in range(num_variants):
         cx = v["x"] + v["labelW"] + 2 + v["bubbleR"]
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
-        cv2.circle(vis, (px(cx), px(cy)), px(v["bubbleR"]), (0, 0, 220), 1)
+        cv2.circle(vis, (px(cx), px(cy)), 3, (0, 0, 220), -1)
 
     _, buf = cv2.imencode(".png", vis)
     b64 = base64.b64encode(buf).decode()
