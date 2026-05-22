@@ -261,3 +261,64 @@ async def process_omr(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/omr/debug")
+async def debug_omr(
+    image:         UploadFile = File(...),
+    num_questions: int        = Form(...),
+    num_options:   int        = Form(5),
+    num_variants:  int        = Form(1),
+):
+    """Returns the warped sheet as a PNG with all expected bubble centres drawn.
+    Use this to verify that perspective correction and coordinates are correct."""
+    import base64
+
+    contents = await image.read()
+    arr  = np.frombuffer(contents, np.uint8)
+    gray = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    if gray is None:
+        return JSONResponse({"error": "Resim okunamadı"}, status_code=400)
+
+    # Show which detection path was used
+    markers = detect_marker_centers(gray)
+    detection_path = "markers" if markers is not None else "canny"
+
+    norm = perspective_correct(gray)
+    if norm is None:
+        return JSONResponse({"error": "Sayfa sınırları algılanamadı", "detection": "failed"}, status_code=422)
+
+    # Draw on a colour copy
+    vis = cv2.cvtColor(norm, cv2.COLOR_GRAY2BGR)
+
+    g = GRID;  n = NUMARA;  v = VARIANT
+    col1 = math.ceil(num_questions / 2)
+
+    def px(mm_val): return int(round(mm_val * PPM))
+
+    # Answer bubbles — green
+    for q in range(num_questions):
+        is2  = q >= col1
+        ri   = q - col1 if is2 else q
+        colX = g["col2X"] if is2 else g["col1X"]
+        cy   = g["startY"] + ri * g["rowH"] + g["rowH"] / 2
+        for oi in range(num_options):
+            cx = colX + g["numW"] + oi * g["bubbleSpacing"] + g["bubbleSpacing"] / 2
+            cv2.circle(vis, (px(cx), px(cy)), px(g["bubbleR"]), (0, 200, 0), 1)
+
+    # PIN bubbles — blue
+    for col in range(n["numCols"]):
+        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
+        for d in range(n["numRows"]):
+            cy = n["tableY"] + n["headerH"] + d * n["rowH"] + n["rowH"] / 2
+            cv2.circle(vis, (px(cx), px(cy)), px(n["bubbleR"]), (200, 0, 0), 1)
+
+    # Variant bubbles — red
+    for vi in range(num_variants):
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"]
+        cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
+        cv2.circle(vis, (px(cx), px(cy)), px(v["bubbleR"]), (0, 0, 220), 1)
+
+    _, buf = cv2.imencode(".png", vis)
+    b64 = base64.b64encode(buf).decode()
+    return {"detection_path": detection_path, "image_base64": b64}
