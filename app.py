@@ -207,7 +207,7 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
     # Student PIN
     # <thead> has height:4mm set explicitly → it does render; <td> rows inflate to ~6mm from bubble content
     PIN_HEADER_H = 4.0
-    PIN_ROW_H    = 6.0
+    PIN_ROW_H    = 5.5
     pin_digits = []
     for col in range(n["numCols"]):
         cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
@@ -323,7 +323,7 @@ async def debug_omr(
 
     # PIN bubbles — blue filled dot
     PIN_HEADER_H = 4.0
-    PIN_ROW_H    = 6.0
+    PIN_ROW_H    = 5.5
     for col in range(n["numCols"]):
         cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         for d in range(n["numRows"]):
