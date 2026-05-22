@@ -205,14 +205,15 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
         answers[f"q{q + 1}"] = opts[idx] if idx >= 0 else ""
 
     # Student PIN
-    # CSS empty <thead> collapses to ~0mm; actual rendered rowH ≈ 6mm (not 5.5mm)
-    PIN_ROW_H = 6.0
+    # <thead> has height:4mm set explicitly → it does render; <td> rows inflate to ~6mm from bubble content
+    PIN_HEADER_H = 4.0
+    PIN_ROW_H    = 6.0
     pin_digits = []
     for col in range(n["numCols"]):
         cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         fills = []
         for d in range(n["numRows"]):
-            cy = n["tableY"] + d * PIN_ROW_H + PIN_ROW_H / 2
+            cy = n["tableY"] + PIN_HEADER_H + d * PIN_ROW_H + PIN_ROW_H / 2
             fills.append(fill_ratio(norm, cx, cy, n["bubbleR"], thr))
         idx = pick_dominant(fills)
         pin_digits.append(idx)   # -1 = undetected digit
@@ -321,11 +322,12 @@ async def debug_omr(
             cv2.circle(vis, (px(cx), px(cy)), 3, (0, 180, 0), -1)
 
     # PIN bubbles — blue filled dot
-    PIN_ROW_H = 6.0
+    PIN_HEADER_H = 4.0
+    PIN_ROW_H    = 6.0
     for col in range(n["numCols"]):
         cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
         for d in range(n["numRows"]):
-            cy = n["tableY"] + d * PIN_ROW_H + PIN_ROW_H / 2
+            cy = n["tableY"] + PIN_HEADER_H + d * PIN_ROW_H + PIN_ROW_H / 2
             cv2.circle(vis, (px(cx), px(cy)), 3, (220, 0, 0), -1)
 
     # Variant bubbles — red filled dot
