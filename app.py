@@ -89,20 +89,36 @@ def detect_page_corners(gray: np.ndarray):
 
 # ── Perspective correction ───────────────────────────────────────────────────
 
-def perspective_correct(gray: np.ndarray):
-    dst = np.array([[0, 0], [NORM_W, 0], [NORM_W, NORM_H], [0, NORM_H]], dtype="float32")
+# Expected pixel positions of each corner marker's CENTER in the normalised canvas.
+# Marker corner positions (mm) + half marker size → centre in mm → × PPM = px.
+# This ensures that after warping, any coordinate computed as x_mm * PPM lines up
+# exactly with the rendered sheet layout.
+_HALF = MARKER_SIZE / 2 * PPM  # 7.5 mm × 3 px/mm = 22.5 px
+_MARKER_DST = {
+    k: (v[0] * PPM + _HALF, v[1] * PPM + _HALF)
+    for k, v in MARKERS_MM.items()
+}
 
+def perspective_correct(gray: np.ndarray):
+    # Primary: map detected marker centres to their expected pixel positions.
+    # Keeps PPM scale intact — bubble_px = bubble_mm × PPM after warp.
     markers = detect_marker_centers(gray)
     if markers is not None:
+        # markers order: TL TR ML MR BL BR  (indices 0-5)
         src = order_points(np.array([
-            markers[0], markers[1], markers[5], markers[4]
+            markers[0], markers[1], markers[5], markers[4]  # TL TR BR BL
         ], dtype="float32"))
+        tl = _MARKER_DST["TL"]; tr = _MARKER_DST["TR"]
+        br = _MARKER_DST["BR"]; bl = _MARKER_DST["BL"]
+        dst = order_points(np.array([tl, tr, br, bl], dtype="float32"))
         M = cv2.getPerspectiveTransform(src, dst)
         return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
 
+    # Fallback: Canny finds page outline → corners map to canvas corners.
     corners = detect_page_corners(gray)
     if corners is not None:
         src = order_points(corners)
+        dst = np.array([[0, 0], [NORM_W, 0], [NORM_W, NORM_H], [0, NORM_H]], dtype="float32")
         M   = cv2.getPerspectiveTransform(src, dst)
         return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
 
@@ -190,7 +206,8 @@ def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants
     # Variant (Grup)
     fills = []
     for vi in range(num_variants):
-        cx = v["x"] + v["labelW"] + v["bubbleR"]
+        # renderer uses flexbox gap:2mm between label span and bubble div
+        cx = v["x"] + v["labelW"] + 2 + v["bubbleR"]
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         fills.append(fill_ratio(norm, cx, cy, v["bubbleR"], thr))
     variant = pick_dominant(fills)
