@@ -45,7 +45,7 @@
   },
 
   "analysis": {
-    "min_fill_ratio":   0.10,
-    "dominance_factor": 1.45
+    "min_fill_ratio":   0.06,
+    "dominance_factor": 1.30
   }
 }
