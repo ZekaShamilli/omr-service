@@ -46,73 +46,86 @@ def order_points(pts: np.ndarray) -> np.ndarray:
     return rect
 
 
+def detect_marker_centers(gray: np.ndarray):
+    """Detect 6 fiducial squares → [TL, TR, ML, MR, BL, BR] pixel centres.
+
+    Uses Otsu threshold so it works under varying lighting. Each zone must
+    contain a blob that is roughly square and large enough to be the marker.
+    Returns None if any zone fails detection.
+    """
+    h, w = gray.shape
+    # Otsu global threshold (works well for dark squares on white paper)
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    ZONES = [
+        (0,    0,    0.25, 0.27),   # TL
+        (0.75, 0,    1.0,  0.27),   # TR
+        (0,    0.35, 0.25, 0.65),   # ML
+        (0.75, 0.35, 1.0,  0.65),   # MR
+        (0,    0.73, 0.25, 1.0 ),   # BL
+        (0.75, 0.73, 1.0,  1.0 ),   # BR
+    ]
+    MIN_FILL = 0.015   # at least 1.5 % of zone must be dark
+
+    pts = []
+    for (fx0, fy0, fx1, fy1) in ZONES:
+        x0, x1 = int(fx0 * w), int(fx1 * w)
+        y0, y1 = int(fy0 * h), int(fy1 * h)
+        roi = binary[y0:y1, x0:x1]
+        fill = roi.mean() / 255.0
+        if fill < MIN_FILL:
+            return None
+        ys, xs = np.where(roi > 0)
+        pts.append([float(xs.mean()) + x0, float(ys.mean()) + y0])
+    return pts   # [TL, TR, ML, MR, BL, BR]
+
+
 def detect_page_corners(gray: np.ndarray):
-    """Find answer sheet corners via largest quadrilateral contour (OMRChecker style)."""
+    """Fallback: largest quadrilateral contour (Canny edge detection)."""
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edged   = cv2.Canny(blurred, 75, 200)
     contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+    img_area = gray.shape[0] * gray.shape[1]
     for c in contours:
-        peri  = cv2.arcLength(c, True)
+        area = cv2.contourArea(c)
+        if area < img_area * 0.1:   # ignore tiny contours
+            continue
+        peri   = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
         if len(approx) == 4:
             return approx.reshape(4, 2).astype("float32")
     return None
 
 
-def detect_marker_centers(gray: np.ndarray):
-    """Fallback: detect 6 fiducial squares and return [TL,TR,ML,MR,BL,BR] centres."""
-    h, w = gray.shape
-    ZONES = [
-        (0,    0,    0.25, 0.25),
-        (0.75, 0,    1.0,  0.25),
-        (0,    0.35, 0.25, 0.65),
-        (0.75, 0.35, 1.0,  0.65),
-        (0,    0.75, 0.25, 1.0 ),
-        (0.75, 0.75, 1.0,  1.0 ),
-    ]
-    DARK      = 80
-    MIN_RATIO = 0.025
-    pts = []
-    for (fx0, fy0, fx1, fy1) in ZONES:
-        x0, x1 = int(fx0 * w), int(fx1 * w)
-        y0, y1 = int(fy0 * h), int(fy1 * h)
-        region  = gray[y0:y1, x0:x1]
-        dark    = region < DARK
-        count   = int(dark.sum())
-        if count / ((x1 - x0) * (y1 - y0)) < MIN_RATIO:
-            return None
-        ys, xs = np.where(dark)
-        pts.append([float(xs.mean()) + x0, float(ys.mean()) + y0])
-    return pts   # [TL, TR, ML, MR, BL, BR]
-
-
 # ── Perspective correction ───────────────────────────────────────────────────
 
 def perspective_correct(gray: np.ndarray):
-    """Warp image to NORM_W × NORM_H using page outline or marker fallback."""
+    """Warp image to NORM_W × NORM_H.
+
+    Primary path: detect all 6 fiducial markers → use 4 corner centres.
+    Fallback: Canny page-outline detection.
+    Marker path is preferred because it is immune to table edges / backgrounds.
+    """
     dst = np.array([[0, 0], [NORM_W, 0], [NORM_W, NORM_H], [0, NORM_H]], dtype="float32")
 
-    # Primary: page outline (works even if markers are cropped)
+    # Primary: fiducial marker centres (robust against background clutter)
+    markers = detect_marker_centers(gray)
+    if markers is not None:
+        src = order_points(np.array([
+            markers[0], markers[1], markers[5], markers[4]  # TL, TR, BR, BL
+        ], dtype="float32"))
+        M = cv2.getPerspectiveTransform(src, dst)
+        return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
+
+    # Fallback: page outline via Canny edges
     corners = detect_page_corners(gray)
     if corners is not None:
         src = order_points(corners)
         M   = cv2.getPerspectiveTransform(src, dst)
         return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
 
-    # Fallback: fiducial markers (TL, TR, BL, BR)
-    markers = detect_marker_centers(gray)
-    if markers is None:
-        return None
-    half = MARKER_SIZE / 2
-    tl = [markers[0][0] + half * gray.shape[1] / NORM_W,
-          markers[0][1] + half * gray.shape[0] / NORM_H]  # rough centre
-    # simpler: just use the averaged dark-pixel centroids as corners
-    src = order_points(np.array([
-        markers[0], markers[1], markers[5], markers[4]
-    ], dtype="float32"))
-    M = cv2.getPerspectiveTransform(src, dst)
-    return cv2.warpPerspective(gray, M, (NORM_W, NORM_H))
+    return None
 
 
 # ── Bubble fill ratio (vectorised) ───────────────────────────────────────────
@@ -136,10 +149,9 @@ def fill_ratio(img: np.ndarray, cx_mm: float, cy_mm: float, r_mm: float, thr: in
 # ── Sheet analysis ───────────────────────────────────────────────────────────
 
 def analyze(norm: np.ndarray, num_questions: int, num_options: int, num_variants: int):
-    # Dynamic threshold: 65 % of median sample brightness
-    flat   = norm.flatten()[::max(1, len(norm.flatten()) // 500)]
-    flat.sort()
-    thr    = int(np.clip(flat[len(flat) // 2] * 0.65, 60, 200))
+    # Otsu threshold on the normalised sheet — works under any lighting
+    thr_val, _ = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    thr = int(np.clip(thr_val * 0.85, 60, 220))
 
     g = GRID;  n = NUMARA;  v = VARIANT
     opts = list("ABCDE"[:num_options])
