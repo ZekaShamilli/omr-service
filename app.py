@@ -324,10 +324,10 @@ async def debug_omr(
     # PIN bubbles — blue filled dot
     PIN_HEADER_H = n["headerH"]
     PIN_ROW_H    = n["rowH"]
-    for col in range(n["numCols"]):
-        cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
-        for d in range(n["numRows"]):
-            cy = n["tableY"] + PIN_HEADER_H + d * PIN_ROW_H + PIN_ROW_H / 2
+    for d in range(n["numRows"]):
+        cy = n["tableY"] + PIN_HEADER_H + d * PIN_ROW_H + PIN_ROW_H / 2
+        for col in range(n["numCols"]):
+            cx = n["tableX"] + n["labelColW"] + col * n["digitColW"] + n["digitColW"] / 2
             cv2.circle(vis, (px(cx), px(cy)), 3, (220, 0, 0), -1)
 
     # Variant bubbles — red filled dot
@@ -336,6 +336,20 @@ async def debug_omr(
         cy = v["y"] + vi * v["rowH"] + v["rowH"] / 2
         cv2.circle(vis, (px(cx), px(cy)), 3, (0, 0, 220), -1)
 
+    # Diagnostic: sample actual pixel darkness at each PIN row centre (column 2)
+    clahe2 = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    norm_c = clahe2.apply(norm)
+    thr_val2, _ = cv2.threshold(norm_c, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    thr2 = int(np.clip(thr_val2 * 0.85, 60, 220))
+    PIN_HEADER_H2 = n["headerH"]
+    PIN_ROW_H2    = n["rowH"]
+    cx_diag = n["tableX"] + n["labelColW"] + 2 * n["digitColW"] + n["digitColW"] / 2
+    pin_fills = {}
+    for d in range(n["numRows"]):
+        cy_diag = n["tableY"] + PIN_HEADER_H2 + d * PIN_ROW_H2 + PIN_ROW_H2 / 2
+        fr = fill_ratio(norm_c, cx_diag, cy_diag, n["bubbleR"], thr2)
+        pin_fills[f"row{d}"] = round(fr, 3)
+
     _, buf = cv2.imencode(".png", vis)
     b64 = base64.b64encode(buf).decode()
-    return {"detection_path": detection_path, "image_base64": b64}
+    return {"detection_path": detection_path, "image_base64": b64, "pin_fill_ratios": pin_fills}
